@@ -352,7 +352,10 @@ static void R_API_CALLCONV print_influx_data(data_output_t *output, data_t *data
         }
         else if (!strcmp(data->key, "type")
                 || !strcmp(data->key, "subtype")
+                || !strcmp(data->key, "protocol")
                 || !strcmp(data->key, "id")
+                || !strcmp(data->key, "dst_id")
+                || !strcmp(data->key, "src_id")
                 || !strcmp(data->key, "channel")
                 || !strcmp(data->key, "mic")) {
             str = mbuf_snprintf(buf, ",%s=", data->key);
@@ -381,7 +384,10 @@ static void R_API_CALLCONV print_influx_data(data_output_t *output, data_t *data
         }
         else if (!strcmp(data->key, "type")
                 || !strcmp(data->key, "subtype")
+                || !strcmp(data->key, "protocol")
                 || !strcmp(data->key, "id")
+                || !strcmp(data->key, "dst_id")
+                || !strcmp(data->key, "src_id")
                 || !strcmp(data->key, "channel")
                 || !strcmp(data->key, "mic")) {
             // skip
