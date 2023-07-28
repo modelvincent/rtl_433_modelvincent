@@ -18,6 +18,7 @@
 #include "logger.h"
 #include "fatal.h"
 #include "r_util.h"
+#include "string_expand.h"
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -29,6 +30,7 @@
 /* InfluxDB client abstraction / printer */
 
 #define RTL433_INFLUX_URL_LENGTH 399
+#define RTL433_INFLUX_METRIC_LENGTH 99
 
 typedef struct {
     struct data_output output;
@@ -39,6 +41,7 @@ typedef struct {
     char hostname[64];
     char url[RTL433_INFLUX_URL_LENGTH + 1];
     char extra_headers[150];
+    char metric_format[RTL433_INFLUX_METRIC_LENGTH + 1];
     tls_opts_t tls_opts;
     int databufidxfill;
     struct mbuf databufs[2];
@@ -91,10 +94,11 @@ static void influx_client_event(struct mg_connection *nc, int ev, void *ev_data)
     }
 }
 
-static influx_client_t *influx_client_init(influx_client_t *ctx, char const *url, char const *token)
+static influx_client_t *influx_client_init(influx_client_t *ctx, char const *url, char const *token, const char *metric_format)
 {
     strncpy(ctx->url, url, RTL433_INFLUX_URL_LENGTH);
     snprintf(ctx->extra_headers, sizeof (ctx->extra_headers), "Authorization: Token %s\r\n", token);
+    strncpy(ctx->metric_format, metric_format, RTL433_INFLUX_METRIC_LENGTH);
 
     return ctx;
 }
@@ -310,7 +314,12 @@ static void R_API_CALLCONV print_influx_data(data_output_t *output, data_t *data
             data_time = d;
     }
 
-    if (!data_model) {
+    if (influx->metric_format[0])  {
+        char metric_name[1000];
+        mbuf_reserve(buf, sizeof (metric_name) + 1000);
+        expand_topic_string(metric_name, influx->metric_format, data, influx->hostname, influx_sanitize_tag);
+        mbuf_snprintf(buf, "%s", metric_name);
+    } else if (!data_model) {
         // data isn't from device (maybe report for example)
         // use hostname for measurement
 
@@ -318,7 +327,7 @@ static void R_API_CALLCONV print_influx_data(data_output_t *output, data_t *data
         mbuf_snprintf(buf, "rtl_433_%s", influx->hostname);
     }
     else {
-        // use model for measurement
+        // default: use "model" for metric name
 
         mbuf_reserve(buf, 1000);
         str = &buf->buf[buf->len];
@@ -328,8 +337,17 @@ static void R_API_CALLCONV print_influx_data(data_output_t *output, data_t *data
 
     // write tags
     while (data) {
-        if (!strcmp(data->key, "model")
-                || !strcmp(data->key, "time")) {
+        if ((!strcmp(data->key, "model") && strstr(influx->metric_format, "[model"))
+            || (!strcmp(data->key, "type") && strstr(influx->metric_format, "[type"))
+            || (!strcmp(data->key, "subtype") && strstr(influx->metric_format, "[subtype"))
+            || (!strcmp(data->key, "hostname") && strstr(influx->metric_format, "[hostname"))
+            || (!strcmp(data->key, "channel") && strstr(influx->metric_format, "[channel"))
+            || (!strcmp(data->key, "id") && strstr(influx->metric_format, "[id"))
+            || (!strcmp(data->key, "protocol") && strstr(influx->metric_format, "[protocol"))) {
+            // this field is already encoded in the metric name -> skip
+        } else if (!strcmp(data->key, "model") && !influx->metric_format[0]) {
+            // non-configurable metric format uses "model" for metric name -> skip
+        } else if (!strcmp(data->key, "time")) {
             // skip
         }
         else if (!strcmp(data->key, "type")
@@ -458,6 +476,7 @@ struct data_output *data_output_influx_create(struct mg_mgr *mgr, char *opts)
     influx_sanitize_tag(influx->hostname, NULL);
 
     char *token = NULL;
+    char *metric_format = NULL;
 
     // param/opts starts with URL
     char *url = opts;
@@ -501,6 +520,8 @@ struct data_output *data_output_influx_create(struct mg_mgr *mgr, char *opts)
             continue;
         else if (!strcasecmp(key, "t") || !strcasecmp(key, "token"))
             token = val;
+        else if (!strcasecmp(key, "metric"))
+            metric_format = val;
         else if (!tls_param(&influx->tls_opts, key, val)) {
             // ok
         }
@@ -510,6 +531,11 @@ struct data_output *data_output_influx_create(struct mg_mgr *mgr, char *opts)
         }
     }
 
+    if (metric_format && strlen(metric_format) > RTL433_INFLUX_METRIC_LENGTH) {
+        print_logf(LOG_FATAL, __func__, "InfluxDB \"metric\" formatter too long, sorry");
+        exit(1);
+    }
+
     influx->output.print_data   = print_influx_data;
     influx->output.print_array  = print_influx_array;
     influx->output.print_string = print_influx_string;
@@ -517,10 +543,12 @@ struct data_output *data_output_influx_create(struct mg_mgr *mgr, char *opts)
     influx->output.print_int    = print_influx_int;
     influx->output.output_free  = data_output_influx_free;
 
-    print_logf(LOG_CRITICAL, "InfluxDB", "Publishing data to InfluxDB (%s)", url);
+    print_logf(LOG_CRITICAL, "InfluxDB", "Publishing data to InfluxDB (%s, %s%s)", url,
+            metric_format ? "dynamic metric " : "static metric",
+            metric_format ? metric_format : "");
 
     influx->mgr = mgr;
-    influx_client_init(influx, url, token);
+    influx_client_init(influx, url, token, metric_format);
 
     return &influx->output;
 }
