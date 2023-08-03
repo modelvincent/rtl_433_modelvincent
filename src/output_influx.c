@@ -28,6 +28,8 @@
 
 /* InfluxDB client abstraction / printer */
 
+#define RTL433_INFLUX_URL_LENGTH 399
+
 typedef struct {
     struct data_output output;
     struct mg_mgr *mgr;
@@ -35,7 +37,7 @@ typedef struct {
     int prev_status;
     int prev_resp_code;
     char hostname[64];
-    char url[400];
+    char url[RTL433_INFLUX_URL_LENGTH + 1];
     char extra_headers[150];
     tls_opts_t tls_opts;
     int databufidxfill;
@@ -91,8 +93,7 @@ static void influx_client_event(struct mg_connection *nc, int ev, void *ev_data)
 
 static influx_client_t *influx_client_init(influx_client_t *ctx, char const *url, char const *token)
 {
-    strncpy(ctx->url, url, sizeof(ctx->url));
-    ctx->url[sizeof(ctx->url) - 1] = '\0';
+    strncpy(ctx->url, url, RTL433_INFLUX_URL_LENGTH);
     snprintf(ctx->extra_headers, sizeof (ctx->extra_headers), "Authorization: Token %s\r\n", token);
 
     return ctx;
@@ -483,6 +484,11 @@ struct data_output *data_output_influx_create(struct mg_mgr *mgr, char *opts)
                 !host.len ? " No host specified." : "",
                 !path.len ? " No path component specified." : "",
                 !query.len ? " No query parameters specified." : "");
+        exit(1);
+    }
+
+    if (strlen(url) > RTL433_INFLUX_URL_LENGTH) {
+        print_logf(LOG_FATAL, __func__, "InfluxDB URL too long, sorry");
         exit(1);
     }
 
