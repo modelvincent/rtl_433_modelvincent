@@ -40,6 +40,7 @@ add_library(r_433 STATIC
     rfraw.c
     samp_grab.c
     sdr.c
+    string_expand.c
     term_ctl.c
     util.c
     write_sigrok.c
