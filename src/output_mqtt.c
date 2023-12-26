@@ -36,6 +36,9 @@ typedef struct mqtt_client {
     int publish_flags; // MG_MQTT_RETAIN | MG_MQTT_QOS(0)
 } mqtt_client_t;
 
+char const *mqtt_lwt_online = "online";
+char const *mqtt_lwt_offline = "offline";
+
 static void mqtt_client_event(struct mg_connection *nc, int ev, void *ev_data)
 {
     // note that while shutting down the ctx is NULL
@@ -71,6 +74,10 @@ static void mqtt_client_event(struct mg_connection *nc, int ev, void *ev_data)
         }
         else {
             print_log(LOG_NOTICE, "MQTT", "MQTT Connection established.");
+            if (ctx->mqtt_opts.will_topic) {
+                ctx->message_id++;
+                mg_mqtt_publish(ctx->conn, ctx->mqtt_opts.will_topic, ctx->message_id, MG_MQTT_QOS(0) | MG_MQTT_RETAIN, mqtt_lwt_online, strlen(mqtt_lwt_online));
+            }
         }
         break;
     case MG_EV_MQTT_PUBACK:
@@ -102,17 +109,20 @@ static void mqtt_client_event(struct mg_connection *nc, int ev, void *ev_data)
     }
 }
 
-static mqtt_client_t *mqtt_client_init(struct mg_mgr *mgr, tls_opts_t *tls_opts, char const *host, char const *port, char const *user, char const *pass, char const *client_id, int retain, int qos)
+static mqtt_client_t *mqtt_client_init(struct mg_mgr *mgr, tls_opts_t *tls_opts, char const *host, char const *port, char const *user, char const *pass, char const *client_id, int retain, int qos, char const *will_topic)
 {
     mqtt_client_t *ctx = calloc(1, sizeof(*ctx));
     if (!ctx)
         FATAL_CALLOC("mqtt_client_init()");
 
-    ctx->mqtt_opts.user_name = user;
-    ctx->mqtt_opts.password  = pass;
-    ctx->publish_flags  = MG_MQTT_QOS(qos) | (retain ? MG_MQTT_RETAIN : 0);
+    ctx->mqtt_opts.user_name    = user;
+    ctx->mqtt_opts.password     = pass;
+    ctx->mqtt_opts.will_topic   = will_topic;
+    ctx->mqtt_opts.will_message = mqtt_lwt_offline;
+    ctx->mqtt_opts.flags       |= (will_topic ? MG_MQTT_WILL_RETAIN : 0);
+    ctx->publish_flags          = MG_MQTT_QOS(qos) | (retain ? MG_MQTT_RETAIN : 0);
     // TODO: these should be user configurable options
-    //ctx->opts.keepalive = 60;
+    //ctx->mqtt_opts.keepalive = 60;
     //ctx->timeout = 10000L;
     //ctx->cleansession = 1;
     snprintf(ctx->client_id, sizeof(ctx->client_id), "%s", client_id);
@@ -206,6 +216,7 @@ typedef struct {
     char *devices;
     char *events;
     char *states;
+    char *online;
     //char *homie;
     //char *hass;
 } data_output_mqtt_t;
@@ -453,6 +464,7 @@ static void R_API_CALLCONV data_output_mqtt_free(data_output_t *output)
     free(mqtt->devices);
     free(mqtt->events);
     free(mqtt->states);
+    free(mqtt->online);
     //free(mqtt->homie);
     //free(mqtt->hass);
 
@@ -512,11 +524,12 @@ struct data_output *data_output_mqtt_create(struct mg_mgr *mgr, char *param, cha
     char const *path_devices = "devices[/type][/model][/subtype][/channel][/id]";
     char const *path_events = "events";
     char const *path_states = "states";
+    char const *path_online = "online";
 
-    char *user = NULL;
-    char *pass = NULL;
-    int retain = 0;
-    int qos = 0;
+    char const *user = NULL;
+    char const *pass = NULL;
+    int retain       = 0;
+    int qos          = 0;
 
     // parse host and port
     tls_opts_t tls_opts = {0};
@@ -544,6 +557,8 @@ struct data_output *data_output_mqtt_create(struct mg_mgr *mgr, char *param, cha
             retain = atobv(val, 1);
         else if (!strcasecmp(key, "q") || !strcasecmp(key, "qos"))
             qos = atoiv(val, 1);
+        else if (!strcasecmp(key, "online"))
+            mqtt->online = mqtt_topic_default(val, base_topic, path_online);
         // Simple key-topic mapping
         else if (!strcasecmp(key, "d") || !strcasecmp(key, "devices"))
             mqtt->devices = mqtt_topic_default(val, base_topic, path_devices);
@@ -583,12 +598,21 @@ struct data_output *data_output_mqtt_create(struct mg_mgr *mgr, char *param, cha
         mqtt->events  = mqtt_topic_default(NULL, base_topic, path_events);
         mqtt->states  = mqtt_topic_default(NULL, base_topic, path_states);
     }
+    if (!mqtt->online) {
+        mqtt->online = mqtt_topic_default(NULL, base_topic, path_online);
+    }
+    else if (!*mqtt->online) {
+        free(mqtt->online); // remove empty value, disable option
+        mqtt->online = NULL;
+    }
     if (mqtt->devices)
         print_logf(LOG_NOTICE, "MQTT", "Publishing device info to MQTT topic \"%s\".", mqtt->devices);
     if (mqtt->events)
         print_logf(LOG_NOTICE, "MQTT", "Publishing events info to MQTT topic \"%s\".", mqtt->events);
     if (mqtt->states)
         print_logf(LOG_NOTICE, "MQTT", "Publishing states info to MQTT topic \"%s\".", mqtt->states);
+    if (mqtt->online)
+        print_logf(LOG_NOTICE, "MQTT", "Publishing online info to MQTT topic \"%s\".", mqtt->online);
 
     mqtt->output.print_data   = print_mqtt_data;
     mqtt->output.print_array  = print_mqtt_array;
@@ -597,7 +621,7 @@ struct data_output *data_output_mqtt_create(struct mg_mgr *mgr, char *param, cha
     mqtt->output.print_int    = print_mqtt_int;
     mqtt->output.output_free  = data_output_mqtt_free;
 
-    mqtt->mqc = mqtt_client_init(mgr, &tls_opts, host, port, user, pass, client_id, retain, qos);
+    mqtt->mqc = mqtt_client_init(mgr, &tls_opts, host, port, user, pass, client_id, retain, qos, mqtt->online);
 
     return (struct data_output *)mqtt;
 }
