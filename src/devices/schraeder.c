@@ -396,7 +396,7 @@ static char const *const output_fields_SMD3MA4[] = {
         NULL,
 };
 
-static char *output_fields_MRXBC5A4[] = {
+static char const *const output_fields_MRXBC5A4[] = {
         "model",
         "type",
         "id",
@@ -438,7 +438,7 @@ r_device const schrader_SMD3MA4 = {
         .fields      = output_fields_SMD3MA4,
 };
 
-r_device schrader_MRXBC5A4 = {
+r_device const schrader_MRXBC5A4 = {
         .name        = "Schrader TPMS MRXBC5A4, MRXBMW433TX1 (BMW)",
         .modulation  = OOK_PULSE_MANCHESTER_ZEROBIT,
         .short_width = 135,
