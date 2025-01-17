@@ -193,7 +193,7 @@ static int emax_decode(r_device *decoder, bitbuffer_t *bitbuffer)
             int rain_raw      = (((b[11] - 1) & 0xff) << 8) | ((b[12] - 1) & 0xff);
             float rain_mm     = rain_raw * 0.2f;
 
-            if (b[29] == 0x17) {                               // with UV/Lux, without Wind Gust
+            if (b[29] == 0x16) {                               // with UV/Lux, without Wind Gust
                 int uv_index      = (b[13] - 1) & 0x1f;
                 int lux_14        = (b[14] - 1) & 0xFF;
                 int lux_15        = (b[15] - 1) & 0xFF;
