@@ -159,7 +159,7 @@ static int emax_decode(r_device *decoder, bitbuffer_t *bitbuffer)
         int pairing     = (b[3] & 0x04);
 
         // depend if external temp/hum sensor or Weather rain/wind station the values are not decode the same
-
+        printf("Pret a afficher\n");
         if (kind != 0) {  // if not Rain/Wind ... sensor
 
             int temp_raw    = ((b[4] & 0x0f) << 8) | (b[5] & 0xf0) | (b[6] & 0x0f); // weird format
