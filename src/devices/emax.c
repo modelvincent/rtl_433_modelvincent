@@ -194,6 +194,7 @@ static int emax_decode(r_device *decoder, bitbuffer_t *bitbuffer)
             float rain_mm     = rain_raw * 0.2f;
 
             if (b[29] == 0x16) {                               // with UV/Lux and Wind Gust
+                
                 int uv_index      = (b[13] - 1) & 0x1f;
                 int lux_14        = (b[14] - 1) & 0xFF;
                 int lux_15        = (b[15] - 1) & 0xFF;
@@ -204,6 +205,7 @@ static int emax_decode(r_device *decoder, bitbuffer_t *bitbuffer)
                     light_lux = light_lux * 10;
                 }
                 int tag           = ((b[13] - 1) & 0xC0)>>6;  // if tag = 3 = model IMETEO X6 without UV and LUX #2753
+                printf("Dans le 0x16\n");
                 /* clang-format off */
                 data_t *data = data_make(
                         "model",            "",                 DATA_COND, tag !=3, DATA_STRING, "Emax-W6",
@@ -223,7 +225,7 @@ static int emax_decode(r_device *decoder, bitbuffer_t *bitbuffer)
                         "mic",              "Integrity",        DATA_STRING, "CHECKSUM",
                         NULL);
                 /* clang-format on */
-
+                printf("Donnees recues\n");
                 decoder_output_data(decoder, data);
                 return 1;
             }
