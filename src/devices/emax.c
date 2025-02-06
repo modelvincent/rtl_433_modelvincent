@@ -193,12 +193,13 @@ static int emax_decode(r_device *decoder, bitbuffer_t *bitbuffer)
             int rain_raw      = (((b[11] - 1) & 0xff) << 8) | ((b[12] - 1) & 0xff);
             float rain_mm     = rain_raw * 0.2f;
 
-            if (b[29] == 0x16) {                               // with UV/Lux, without Wind Gust
+            if (b[29] == 0x16) {                               // with UV/Lux and Wind Gust
                 int uv_index      = (b[13] - 1) & 0x1f;
                 int lux_14        = (b[14] - 1) & 0xFF;
                 int lux_15        = (b[15] - 1) & 0xFF;
                 int lux_multi     = ((lux_14 & 0x80) >> 7);
                 int light_lux     = ((lux_14 & 0x7f) << 8) | (lux_15);
+                float gust_kmh = b[16] / 1.5f;
                 if (lux_multi == 1) {
                     light_lux = light_lux * 10;
                 }
@@ -213,6 +214,7 @@ static int emax_decode(r_device *decoder, bitbuffer_t *bitbuffer)
                         "temperature_F",    "Temperature",      DATA_FORMAT, "%.1f F", DATA_DOUBLE, temp_f,
                         "humidity",         "Humidity",         DATA_FORMAT, "%u %%",   DATA_INT,    humidity,
                         "wind_avg_km_h",    "Wind avg speed",   DATA_FORMAT, "%.1f km/h",  DATA_DOUBLE, speed_kmh,
+                        "wind_max_km_h",    "Wind max speed",   DATA_FORMAT, "%.1f km/h",  DATA_DOUBLE, gust_kmh,
                         "wind_dir_deg",     "Wind Direction",   DATA_INT,    direction_deg,
                         "rain_mm",          "Total rainfall",   DATA_FORMAT, "%.1f mm",  DATA_DOUBLE, rain_mm,
                         "uv",               "UV Index",         DATA_COND,   tag !=3, DATA_FORMAT, "%u", DATA_INT, uv_index,
@@ -225,9 +227,9 @@ static int emax_decode(r_device *decoder, bitbuffer_t *bitbuffer)
                 decoder_output_data(decoder, data);
                 return 1;
             }
-            if (b[29] == 0x16) {                               //without UV/Lux with Wind Gust
+            /*if (b[29] == 0x16) {                               //without UV/Lux with Wind Gust
                 float gust_kmh = b[16] / 1.5f;
-                /* clang-format off */
+                // clang-format off 
                 data_t *data = data_make(
                         "model",            "",                 DATA_STRING, "Emax-EM3551H",
                         "id",               "",                 DATA_FORMAT, "%03x", DATA_INT,    id,
@@ -242,11 +244,11 @@ static int emax_decode(r_device *decoder, bitbuffer_t *bitbuffer)
                         "pairing",          "Pairing?",         DATA_COND,   pairing,    DATA_INT,    !!pairing,
                         "mic",              "Integrity",        DATA_STRING, "CHECKSUM",
                         NULL);
-                /* clang-format on */
+                // clang-format on 
 
                 decoder_output_data(decoder, data);
                 return 1;
-            }
+            }*/
         }
         pos += EMAX_MESSAGE_BITLEN;
     }
