@@ -127,6 +127,7 @@ r_device *flex_create_device(char *spec); // maybe put this in some header file?
 static void print_version(void)
 {
     fprintf(stderr, "%s\n", version_string());
+    printf("Version Modelvincent\n");
 }
 
 _Noreturn
