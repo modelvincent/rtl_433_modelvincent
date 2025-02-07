@@ -230,6 +230,7 @@ static int emax_decode(r_device *decoder, bitbuffer_t *bitbuffer)
                 printf("Apres le decodeur\n");
                 return 1;
             }
+            printf("au sortir de la boucle\n");
             /*if (b[29] == 0x16) {                               //without UV/Lux with Wind Gust
                 float gust_kmh = b[16] / 1.5f;
                 // clang-format off 
@@ -253,8 +254,10 @@ static int emax_decode(r_device *decoder, bitbuffer_t *bitbuffer)
                 return 1;
             }*/
         }
+        printf("Pos++\n");
         pos += EMAX_MESSAGE_BITLEN;
     }
+    printf("au return ret\n");
     return ret;
 }
 
