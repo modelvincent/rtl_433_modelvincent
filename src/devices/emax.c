@@ -227,6 +227,7 @@ static int emax_decode(r_device *decoder, bitbuffer_t *bitbuffer)
                 /* clang-format on */
                 printf("Donnees recues\n");
                 decoder_output_data(decoder, data);
+                printf("Apres le decodeur\n");
                 return 1;
             }
             /*if (b[29] == 0x16) {                               //without UV/Lux with Wind Gust
